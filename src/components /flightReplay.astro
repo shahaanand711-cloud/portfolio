@@ -1,0 +1,63 @@
+---
+import flightData from '../data/rocketcamp-flight.json';
+
+interface Props {
+  videoSrc: string;
+  /** Seconds into the video when ignition / t=0 occurs */
+  t0Offset?: number;
+}
+
+const { videoSrc, t0Offset = 0 } = Astro.props;
+
+const maxT = Math.max(...flightData.points.map((p) => p.t));
+const maxAlt = Math.max(...flightData.points.map((p) => p.alt));
+
+// Precompute SVG polyline points (viewBox: 600 x 260)
+const W = 600;
+const H = 260;
+const PAD = { top: 18, right: 16, bottom: 28, left: 48 };
+const plotW = W - PAD.left - PAD.right;
+const plotH = H - PAD.top - PAD.bottom;
+
+const xOf = (t: number) => PAD.left + (t / maxT) * plotW;
+const yOf = (alt: number) => PAD.top + plotH - (alt / maxAlt) * plotH;
+
+const pathD = flightData.points
+  .map((p, i) => `${i === 0 ? 'M' : 'L'}${xOf(p.t).toFixed(1)},${yOf(p.alt).toFixed(1)}`)
+  .join(' ');
+
+const niceLabels: Record<string, string> = {
+  LIFTOFF: 'Liftoff',
+  BURNOUT: 'Burnout',
+  APOGEE: 'Apogee',
+  RECOVERY_DEVICE_DEPLOYMENT: 'Chute Deploy',
+  GROUND_HIT: 'Touchdown',
+};
+---
+
+<div
+  class="flight-replay"
+  data-flight={JSON.stringify(flightData)}
+  data-t0={t0Offset}
+  data-max-t={maxT}
+  data-max-alt={maxAlt}
+>
+  <div class="replay-grid">
+    <div class="video-wrap">
+      <video class="flight-video" src={videoSrc} controls playsinline preload="metadata"></video>
+    </div>
+
+    <div class="telemetry-wrap">
+      <div class="hud">
+        <div class="hud-cell"><span>T+</span><strong data-hud="t">0.00 s</strong></div>
+        <div class="hud-cell"><span>ALTITUDE</span><strong data-hud="alt">0.0 ft</strong></div>
+        <div class="hud-cell"><span>VELOCITY</span><strong data-hud="vel">0.0 ft/s</strong></div>
+        <div class="hud-cell"><span>MACH</span><strong data-hud="mach">0.000</strong></div>
+        <div class="hud-cell"><span>LOAD</span><strong data-hud="acc">0.00 G</strong></div>
+      </div>
+
+      <svg class="alt-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="OpenRocket altitude profile">
+        <!-- Grid lines -->
+        {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
+          const y = PAD.top + plotH * (1 - frac);
+          const val = Math.round(maxAlt
